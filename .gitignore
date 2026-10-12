@@ -1,0 +1,4 @@
+output/render-frames-*/
+output/*.mp4
+output/launcher-error.txt
+*.pdb

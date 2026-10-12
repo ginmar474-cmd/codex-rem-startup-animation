@@ -1,0 +1,2 @@
+PASS: Rem startup frames rendered. App activation was not executed.
+Reference: assets/rem-reference.jpg
