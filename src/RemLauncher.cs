@@ -15,7 +15,7 @@ namespace RemCodexLauncher
 {
     public sealed class Settings
     {
-        public double Duration = 7.2;
+        public double Duration = 8.4;
         public int FrameRate = 60;
         public string AppId = "OpenAI.Codex_2p2nqsd0c76g0!App";
         public string Exe = "";
@@ -35,7 +35,7 @@ namespace RemCodexLauncher
                 XElement element = xml.Element(name);
                 return element == null ? fallback : element.Value.Trim();
             };
-            result.Duration = double.Parse(value("durationSeconds", "7.2"), CultureInfo.InvariantCulture);
+            result.Duration = double.Parse(value("durationSeconds", "8.4"), CultureInfo.InvariantCulture);
             result.FrameRate = int.Parse(value("frameRate", "60"), CultureInfo.InvariantCulture);
             result.AppId = value("appUserModelId", result.AppId);
             result.Exe = value("executablePath", "");
@@ -93,7 +93,7 @@ namespace RemCodexLauncher
     public sealed class RemScene : FrameworkElement
     {
         public const double DesignWidth = 1280, DesignHeight = 720;
-        public const int ExportWidth = 2560, ExportHeight = 1440;
+        public const int ExportWidth = 1920, ExportHeight = 1080;
         private readonly Settings settings;
         private readonly bool reducedMotion;
         private readonly BitmapImage reference;
@@ -111,9 +111,9 @@ namespace RemCodexLauncher
             Width = DesignWidth;
             Height = DesignHeight;
             reference = LoadImage(root, config.ReferenceImage);
-            codexGlyph = TextGeometry("Codex", display, 116, 792, 222, 0.5);
-            cnGlyph = TextGeometry("欢迎回来，主人", display, 29, 802, 360, 2.8);
-            enGlyph = TextGeometry("REM STARTUP PROTOCOL", display, 14, 804, 404, 1.4);
+            codexGlyph = TextGeometry("Codex", display, 108, 792, 224, 0.5);
+            cnGlyph = TextGeometry("欢迎回来，主人", display, 28, 802, 354, 2.6);
+            enGlyph = TextGeometry("REM STARTUP PROTOCOL", display, 13, 804, 399, 1.3);
             RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.HighQuality);
         }
 
@@ -141,6 +141,16 @@ namespace RemCodexLauncher
         private static double Clamp(double v) { return Math.Max(0, Math.Min(1, v)); }
         private static double Smooth(double v) { v = Clamp(v); return v * v * (3 - 2 * v); }
         private static double Ease(double v) { return 1 - Math.Pow(1 - Clamp(v), 3); }
+        private static double Phase(double v, double start, double end) { return Smooth((v - start) / (end - start)); }
+        private static double Pulse(double v, double center, double width)
+        {
+            return Smooth(1 - Math.Abs(v - center) / width);
+        }
+        private static double Hash(int value)
+        {
+            double n = Math.Sin(value * 91.733 + 17.17) * 43758.5453;
+            return n - Math.Floor(n);
+        }
         private static Brush Brush(string hex) { return new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex)); }
         private static Brush Alpha(double a, byte r, byte g, byte b) { return new SolidColorBrush(Color.FromArgb((byte)(Clamp(a) * 255), r, g, b)); }
 
@@ -175,41 +185,138 @@ namespace RemCodexLauncher
             return gradient;
         }
 
-        private void DrawReference(DrawingContext dc, double u)
+        private void DrawBackdrop(DrawingContext dc, double p)
         {
-            double zoom = 1.035 + Smooth(u / 6.0) * 0.055;
-            double w = DesignWidth * zoom;
-            double h = DesignHeight * zoom;
-            double driftX = -82 - Smooth(u / 8.0) * 34;
-            double driftY = -18 - Math.Sin(u * 0.55) * 5;
-            dc.PushOpacity(reducedMotion ? 0.82 : 0.58 + Smooth((u - 1.8) / 2.0) * 0.28);
-            dc.DrawImage(reference, new Rect(driftX, driftY, w, h));
-            dc.Pop();
-        }
+            var night = new LinearGradientBrush();
+            night.StartPoint = new Point(0, 0);
+            night.EndPoint = new Point(1, 1);
+            night.GradientStops.Add(new GradientStop(Color.FromRgb(1, 5, 13), 0));
+            night.GradientStops.Add(new GradientStop(Color.FromRgb(4, 24, 38), 0.48));
+            night.GradientStops.Add(new GradientStop(Color.FromRgb(22, 8, 29), 1));
+            dc.DrawRectangle(night, null, new Rect(0, 0, DesignWidth, DesignHeight));
 
-        private void DrawSoftLight(DrawingContext dc, double u)
-        {
-            var morning = new LinearGradientBrush();
-            morning.StartPoint = new Point(0, 0);
-            morning.EndPoint = new Point(1, 1);
-            morning.GradientStops.Add(new GradientStop(Color.FromArgb(110, 255, 255, 236), 0));
-            morning.GradientStops.Add(new GradientStop(Color.FromArgb(18, 147, 255, 243), 0.44));
-            morning.GradientStops.Add(new GradientStop(Color.FromArgb(96, 20, 154, 54), 1));
-            dc.DrawRectangle(morning, null, new Rect(0, 0, DesignWidth, DesignHeight));
-
-            for (int i = 0; i < 7; i++)
+            double energy = reducedMotion ? 0.48 : Phase(p, 0.01, 0.22);
+            for (int ribbon = 0; ribbon < 3; ribbon++)
             {
-                double x = 80 + i * 192 + Math.Sin(u * 0.45 + i) * 13;
-                var beam = new LinearGradientBrush();
-                beam.StartPoint = new Point(0, 0);
-                beam.EndPoint = new Point(0, 1);
-                beam.GradientStops.Add(new GradientStop(Color.FromArgb(0, 255, 255, 255), 0));
-                beam.GradientStops.Add(new GradientStop(Color.FromArgb((byte)(32 + i % 3 * 9), 255, 255, 255), 0.42));
-                beam.GradientStops.Add(new GradientStop(Color.FromArgb(0, 255, 255, 255), 1));
-                dc.PushTransform(new RotateTransform(-11 + i * 1.8, x, 360));
-                dc.DrawRectangle(beam, null, new Rect(x, -80, 74, 900));
+                double drift = reducedMotion ? 0 : Math.Sin(Time * (0.34 + ribbon * 0.08) + ribbon * 2.1) * 42;
+                double baseY = 115 + ribbon * 155 + drift;
+                Geometry wave = BuildPath(delegate(StreamGeometryContext g)
+                {
+                    g.BeginFigure(new Point(-80, baseY), true, true);
+                    g.BezierTo(new Point(250, baseY - 130), new Point(520, baseY + 120), new Point(810, baseY - 22), true, false);
+                    g.BezierTo(new Point(1010, baseY - 125), new Point(1260, baseY + 45), new Point(1380, baseY - 65), true, false);
+                    g.LineTo(new Point(1380, baseY + 86), true, false);
+                    g.BezierTo(new Point(1040, baseY + 190), new Point(650, baseY + 45), new Point(-80, baseY + 115), true, false);
+                });
+                string color = ribbon == 0 ? "#215D9E" : ribbon == 1 ? "#286D70" : "#713E86";
+                dc.PushOpacity((0.10 + ribbon * 0.025) * energy);
+                dc.DrawGeometry(Brush(color), null, wave);
                 dc.Pop();
             }
+
+            DrawParticles(dc, p, false);
+        }
+
+        private void DrawParticles(DrawingContext dc, double p, bool foreground)
+        {
+            int count = foreground ? 20 : 46;
+            double start = foreground ? 0.25 : 0.03;
+            double visible = reducedMotion ? 0.55 : Phase(p, start, start + 0.16);
+            if (visible <= 0) return;
+            for (int i = 0; i < count; i++)
+            {
+                double seedX = Hash(i * 7 + (foreground ? 211 : 5));
+                double seedY = Hash(i * 13 + (foreground ? 401 : 23));
+                double speed = 9 + Hash(i * 17 + 9) * (foreground ? 32 : 18);
+                double x = seedX * DesignWidth + Math.Sin(Time * 0.5 + i) * (foreground ? 15 : 5);
+                double y = (seedY * DesignHeight - Time * speed) % (DesignHeight + 60);
+                if (y < -30) y += DesignHeight + 60;
+                double size = (foreground ? 1.6 : 0.8) + Hash(i * 29 + 31) * (foreground ? 3.2 : 1.9);
+                double twinkle = 0.42 + 0.58 * Math.Abs(Math.Sin(Time * (1.2 + Hash(i) * 1.8) + i));
+                Color c = i % 5 == 0 ? Color.FromRgb(255, 153, 205) : Color.FromRgb(160, 239, 255);
+                dc.DrawEllipse(new SolidColorBrush(Color.FromArgb((byte)(visible * twinkle * (foreground ? 145 : 90)), c.R, c.G, c.B)),
+                    null, new Point(x, y), size, size);
+            }
+        }
+
+        private Rect ImageRect(double p)
+        {
+            double breath = reducedMotion ? 0 : Math.Sin(Time * 1.05) * 2.8;
+            double zoom = 1.045 + Phase(p, 0.19, 0.88) * 0.035;
+            double w = DesignWidth * zoom;
+            double h = DesignHeight * zoom;
+            return new Rect(-48 - (w - DesignWidth) * 0.28, -16 - (h - DesignHeight) * 0.42 + breath, w, h);
+        }
+
+        private void DrawReference(DrawingContext dc, double p)
+        {
+            double reveal = reducedMotion ? 1 : Phase(p, 0.18, 0.43);
+            if (reveal <= 0.001) return;
+            Rect imageRect = ImageRect(p);
+            var mask = new GeometryGroup { FillRule = FillRule.Nonzero };
+            Point origin = new Point(596, 326);
+            mask.Children.Add(new EllipseGeometry(origin, 34 + 910 * reveal, 26 + 610 * reveal));
+            for (int i = 0; i < 9; i++)
+            {
+                double local = Clamp(reveal * 1.32 - i * 0.055);
+                double width = 22 + local * 98;
+                double x = 84 + i * 132 + Math.Sin(i * 1.7) * 34;
+                mask.Children.Add(new RectangleGeometry(new Rect(x, 360 - 410 * local, width, 820 * local), 4, 4));
+            }
+
+            dc.PushClip(mask);
+            dc.PushOpacity(0.08 + 0.90 * reveal);
+            dc.DrawImage(reference, imageRect);
+            dc.Pop();
+            dc.Pop();
+
+            if (!reducedMotion && reveal > 0.55) DrawHairMotion(dc, imageRect, reveal);
+
+            var grade = new LinearGradientBrush();
+            grade.StartPoint = new Point(0, 0);
+            grade.EndPoint = new Point(1, 0);
+            grade.GradientStops.Add(new GradientStop(Color.FromArgb((byte)(30 * reveal), 16, 70, 89), 0));
+            grade.GradientStops.Add(new GradientStop(Color.FromArgb((byte)(55 * reveal), 11, 36, 58), 0.48));
+            grade.GradientStops.Add(new GradientStop(Color.FromArgb((byte)(212 * reveal), 3, 10, 20), 1));
+            dc.DrawRectangle(grade, null, new Rect(0, 0, DesignWidth, DesignHeight));
+
+            double birthFlash = Math.Sin(Phase(p, 0.30, 0.46) * Math.PI);
+            if (birthFlash > 0)
+            {
+                var halo = new RadialGradientBrush();
+                halo.Center = new Point(0.47, 0.47);
+                halo.GradientOrigin = halo.Center;
+                halo.GradientStops.Add(new GradientStop(Color.FromArgb((byte)(110 * birthFlash), 225, 255, 255), 0));
+                halo.GradientStops.Add(new GradientStop(Color.FromArgb((byte)(42 * birthFlash), 83, 219, 255), 0.24));
+                halo.GradientStops.Add(new GradientStop(Colors.Transparent, 1));
+                dc.DrawEllipse(halo, null, origin, 245, 245);
+            }
+        }
+
+        private void DrawHairMotion(DrawingContext dc, Rect imageRect, double reveal)
+        {
+            double amount = Smooth((reveal - 0.55) / 0.45);
+            double swayA = Math.Sin(Time * 1.28) * 4.8 * amount;
+            double swayB = Math.Sin(Time * 0.92 + 1.4) * 6.2 * amount;
+            double lift = Math.Sin(Time * 1.75 + 0.6) * 2.3 * amount;
+
+            dc.PushOpacity(0.90 * amount);
+            dc.PushClip(new EllipseGeometry(new Rect(30, -80, 620, 570)));
+            dc.PushTransform(new RotateTransform(swayA * 0.085, 355, 105));
+            dc.DrawImage(reference, new Rect(imageRect.X + swayA, imageRect.Y + lift, imageRect.Width, imageRect.Height));
+            dc.Pop();
+            dc.Pop();
+
+            dc.PushClip(new RectangleGeometry(new Rect(655, 75, 220, 565), 80, 80));
+            dc.PushTransform(new RotateTransform(swayB * 0.10, 724, 178));
+            dc.DrawImage(reference, new Rect(imageRect.X + swayB, imageRect.Y + lift * 0.5, imageRect.Width, imageRect.Height));
+            dc.Pop();
+            dc.Pop();
+
+            dc.PushClip(new EllipseGeometry(new Rect(118, 468, 720, 350)));
+            dc.DrawImage(reference, new Rect(imageRect.X, imageRect.Y + Math.Sin(Time * 1.18) * 2.2 * amount, imageRect.Width, imageRect.Height));
+            dc.Pop();
+            dc.Pop();
         }
 
         private static StreamGeometry BuildPath(Action<StreamGeometryContext> draw)
@@ -220,20 +327,38 @@ namespace RemCodexLauncher
             return geometry;
         }
 
-        private void DrawLinePhase(DrawingContext dc, double u)
+        private void DrawLinePhase(DrawingContext dc, double p)
         {
-            double appear = Ease(u / 2.4) * (1 - Smooth((u - 2.3) / 1.2));
+            double appear = Phase(p, 0.035, 0.13) * (1 - Phase(p, 0.31, 0.43));
             if (appear <= 0) return;
-            double sweep = Clamp(u / 2.35);
+            double sweep = Phase(p, 0.06, 0.31);
             dc.PushOpacity(appear);
             dc.PushClip(new RectangleGeometry(new Rect(0, 0, 740 * sweep + 70, DesignHeight)));
-            Pen glow = new Pen(Alpha(0.20, 125, 239, 255), 8.2) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
-            Pen line = new Pen(Alpha(0.86, 235, 255, 255), 1.5) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
+            Pen glow = new Pen(Alpha(0.24, 68, 211, 255), 10.5) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
+            Pen line = new Pen(Alpha(0.92, 231, 253, 255), 1.35) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
             DrawRemContours(dc, glow);
             DrawRemContours(dc, line);
             dc.Pop();
             double headX = 90 + 630 * sweep;
-            dc.DrawEllipse(Alpha(appear, 255, 255, 255), null, new Point(headX, 286 + Math.Sin(u * 3.1) * 28), 4.5, 4.5);
+            Point scanner = new Point(headX, 286 + Math.Sin(Time * 3.1) * 28);
+            dc.DrawEllipse(Alpha(appear, 255, 255, 255), null, scanner, 4.5, 4.5);
+            dc.DrawEllipse(null, new Pen(Alpha(appear * 0.55, 104, 226, 255), 1.2), scanner, 20, 20);
+            double burst = Math.Sin(Phase(p, 0.12, 0.27) * Math.PI) * appear;
+            for (int i = 0; i < 12 && burst > 0; i++)
+            {
+                double angle = i * Math.PI * 2 / 12.0 + Hash(i) * 0.24;
+                double distance = 52 + Hash(i + 20) * 118 * burst;
+                Point a = new Point(595 + Math.Cos(angle) * distance, 326 + Math.Sin(angle) * distance);
+                Point b = new Point(a.X + Math.Cos(angle + 2.1) * (7 + Hash(i + 40) * 14), a.Y + Math.Sin(angle + 2.1) * (7 + Hash(i + 40) * 14));
+                Point c = new Point(a.X + Math.Cos(angle - 2.0) * (5 + Hash(i + 60) * 10), a.Y + Math.Sin(angle - 2.0) * (5 + Hash(i + 60) * 10));
+                Geometry shard = BuildPath(delegate(StreamGeometryContext g)
+                {
+                    g.BeginFigure(a, true, true);
+                    g.LineTo(b, true, false);
+                    g.LineTo(c, true, false);
+                });
+                dc.DrawGeometry(Alpha(burst * 0.14, 139, 229, 255), new Pen(Alpha(burst * 0.58, 211, 249, 255), 0.8), shard);
+            }
             dc.Pop();
         }
 
@@ -279,55 +404,62 @@ namespace RemCodexLauncher
             }));
         }
 
-        private void DrawEyeGlint(DrawingContext dc, double u)
+        private void DrawEyeGlint(DrawingContext dc, double p)
         {
-            double awake = reducedMotion ? 1 : Smooth((u - 3.05) / 1.35);
-            double flash = Math.Sin(Math.Min(1, awake) * Math.PI);
-            Point eye = new Point(595, 326);
-            dc.PushOpacity(0.18 + 0.62 * awake);
+            double awake = reducedMotion ? 1 : Phase(p, 0.37, 0.54);
+            if (awake <= 0) return;
+            double gazeX = reducedMotion ? 0 : Math.Sin(Time * 0.72) * 2.8;
+            double gazeY = reducedMotion ? 0 : Math.Sin(Time * 0.51 + 1.3) * 1.5;
+            Point eye = new Point(595 + gazeX, 326 + gazeY);
+
+            double flash = Math.Sin(Phase(p, 0.40, 0.55) * Math.PI);
+            dc.PushOpacity(0.18 + 0.66 * awake);
             var iris = new RadialGradientBrush();
-            iris.GradientStops.Add(new GradientStop(Color.FromArgb(240, 255, 255, 255), 0));
-            iris.GradientStops.Add(new GradientStop(Color.FromArgb(210, 66, 219, 247), 0.26));
-            iris.GradientStops.Add(new GradientStop(Color.FromArgb(190, 44, 117, 190), 1));
-            dc.DrawEllipse(iris, new Pen(Alpha(0.45, 255, 255, 255), 1.2), eye, 25 * awake, 33 * awake);
-            dc.DrawEllipse(Alpha(0.85, 255, 255, 255), null, new Point(eye.X - 8, eye.Y - 13), 5.2 * awake, 5.2 * awake);
+            iris.GradientStops.Add(new GradientStop(Color.FromArgb(35, 255, 255, 255), 0));
+            iris.GradientStops.Add(new GradientStop(Color.FromArgb(72, 75, 227, 255), 0.28));
+            iris.GradientStops.Add(new GradientStop(Colors.Transparent, 1));
+            dc.DrawEllipse(iris, null, eye, 12 * awake, 16 * awake);
+            Point glint = new Point(eye.X - 7 + Math.Sin(Time * 1.4) * 2, eye.Y - 12);
+            dc.DrawEllipse(Alpha(0.88, 255, 255, 255), null, glint, 2.8 * awake, 2.8 * awake);
             dc.Pop();
             if (flash > 0)
             {
-                dc.PushOpacity(0.35 * flash);
-                dc.DrawLine(new Pen(Brush("#FFFFFF"), 2.6), new Point(eye.X - 62, eye.Y), new Point(eye.X + 65, eye.Y));
-                dc.DrawLine(new Pen(Brush("#FFFFFF"), 1.4), new Point(eye.X, eye.Y - 56), new Point(eye.X, eye.Y + 58));
+                dc.PushOpacity(0.42 * flash);
+                dc.DrawLine(new Pen(Brush("#FFFFFF"), 2.2), new Point(eye.X - 88, eye.Y), new Point(eye.X + 92, eye.Y));
+                dc.DrawLine(new Pen(Brush("#FFFFFF"), 1.2), new Point(eye.X, eye.Y - 76), new Point(eye.X, eye.Y + 78));
                 dc.Pop();
             }
         }
 
-        private void DrawInterface(DrawingContext dc, double u)
+        private void DrawInterface(DrawingContext dc, double p)
         {
             var shade = new LinearGradientBrush();
             shade.StartPoint = new Point(0, 0);
             shade.EndPoint = new Point(1, 0);
-            shade.GradientStops.Add(new GradientStop(Color.FromArgb(45, 255, 255, 255), 0));
-            shade.GradientStops.Add(new GradientStop(Color.FromArgb(155, 5, 17, 27), 0.58));
-            shade.GradientStops.Add(new GradientStop(Color.FromArgb(230, 5, 17, 27), 1));
+            shade.GradientStops.Add(new GradientStop(Color.FromArgb(0, 255, 255, 255), 0));
+            shade.GradientStops.Add(new GradientStop(Color.FromArgb(35, 5, 17, 27), 0.48));
+            shade.GradientStops.Add(new GradientStop(Color.FromArgb(232, 3, 9, 18), 1));
             dc.DrawRectangle(shade, null, new Rect(0, 0, DesignWidth, DesignHeight));
 
-            double title = Smooth((u - 2.85) / 0.95);
+            double title = reducedMotion ? 1 : Phase(p, 0.50, 0.66);
             dc.PushOpacity(title);
-            dc.DrawGeometry(null, new Pen(Alpha(0.16, 42, 220, 250), 9), codexGlyph);
+            dc.PushClip(new RectangleGeometry(new Rect(770, 190, 440 * title, 160)));
+            dc.DrawGeometry(null, new Pen(Alpha(0.20, 42, 220, 250), 11), codexGlyph);
             dc.DrawGeometry(null, new Pen(Alpha(0.42, 255, 255, 255), 1.2), codexGlyph);
             dc.DrawGeometry(Gradient("#EFFFFF", "#B7F4FF", "#E47FB5"), null, codexGlyph);
 
-            double glintX = 770 + (u - 3.2) * 205;
+            double glintX = 760 + Phase(p, 0.55, 0.78) * 520;
             var glint = new LinearGradientBrush();
             glint.GradientStops.Add(new GradientStop(Colors.Transparent, 0));
-            glint.GradientStops.Add(new GradientStop(Color.FromArgb(90, 255, 255, 255), 0.5));
+            glint.GradientStops.Add(new GradientStop(Color.FromArgb(130, 255, 255, 255), 0.5));
             glint.GradientStops.Add(new GradientStop(Colors.Transparent, 1));
             dc.PushClip(codexGlyph);
             dc.DrawRectangle(glint, null, new Rect(glintX, 204, 60, 150));
             dc.Pop();
             dc.Pop();
+            dc.Pop();
 
-            double message = Smooth((u - 3.65) / 0.85);
+            double message = reducedMotion ? 1 : Phase(p, 0.62, 0.74);
             dc.PushOpacity(message);
             Brush textFill = Gradient("#F6FFFF", "#9FEAFF", "#F4A8CA");
             dc.DrawGeometry(textFill, null, cnGlyph);
@@ -337,38 +469,59 @@ namespace RemCodexLauncher
             dc.DrawLine(new Pen(Alpha(0.65, 186, 244, 255), 1.5), new Point(805, 392), new Point(1128, 392));
             dc.Pop();
 
+            double hud = reducedMotion ? 1 : Phase(p, 0.02, 0.09);
+            dc.PushOpacity(hud);
             Text(dc, "Codex", 40, 32, 18, "#E6FFFF", true);
-            Text(dc, "REM / SOFT LIGHT BOOT", 40, 58, 10, "#BDEEF5", true);
-            Text(dc, "01  LINE TRACE", 41, 136, 10, u < 2.4 ? "#F5FFFF" : "#9AC6CD", true);
-            Text(dc, "02  MATERIALIZE", 41, 154, 10, u >= 2.4 && u < 3.25 ? "#F5FFFF" : "#9AC6CD", true);
-            Text(dc, "03  WAKE", 41, 172, 10, u >= 3.25 ? "#F5FFFF" : "#9AC6CD", true);
+            Text(dc, "REM / CRYSTAL WAKE", 40, 58, 10, "#BDEEF5", true);
+            Text(dc, "01  ICE TRACE", 41, 136, 10, p < 0.31 ? "#F5FFFF" : "#719AA5", true);
+            Text(dc, "02  MATERIALIZE", 41, 154, 10, p >= 0.18 && p < 0.52 ? "#F5FFFF" : "#719AA5", true);
+            Text(dc, "03  EYE SYNC", 41, 172, 10, p >= 0.37 && p < 0.68 ? "#F5FFFF" : "#719AA5", true);
+            Text(dc, "04  CODEX READY", 41, 190, 10, p >= 0.62 ? "#F5FFFF" : "#719AA5", true);
+            dc.Pop();
 
-            double progress = reducedMotion ? 1 : Clamp(Time / settings.Duration);
+            double progress = reducedMotion ? 1 : p;
             dc.DrawLine(new Pen(Alpha(0.22, 218, 255, 255), 1), new Point(805, 604), new Point(1180, 604));
             dc.DrawLine(new Pen(Alpha(0.78, 255, 160, 207), 2.2), new Point(805, 604), new Point(805 + 375 * progress, 604));
             string status = Launching ? "正在打开 Codex…" :
-                u < 2.4 ? "正在描绘雷姆轮廓…" :
-                u < 3.25 ? "正在让柔光显影…" :
-                u < 4.65 ? "雷姆正在醒来…" : "准备出发。";
+                p < 0.18 ? "冰晶正在聚合…" :
+                p < 0.42 ? "正在描绘雷姆轮廓…" :
+                p < 0.62 ? "正在同步眼神与呼吸…" :
+                p < 0.88 ? "Codex 启动协议就绪…" : "准备出发。";
             Text(dc, status, 805, 626, 14, "#DFF9FF", false);
             Text(dc, ((int)(progress * 100)).ToString("D2") + "%", 1194, 594, 10, "#BDEEF5", true);
             Text(dc, "ESC / ENTER / SPACE 跳过", 40, 672, 11, "#BDEEF5", false);
         }
 
+        private void DrawFinale(DrawingContext dc, double p)
+        {
+            double ready = Phase(p, 0.84, 0.92);
+            if (ready > 0)
+            {
+                Point center = new Point(986, 306);
+                double radius = 90 + ready * 420;
+                dc.DrawEllipse(null, new Pen(Alpha((1 - ready) * 0.62, 164, 242, 255), 1.4), center, radius, radius);
+                dc.DrawEllipse(null, new Pen(Alpha((1 - ready) * 0.38, 255, 151, 205), 2.0), center, radius * 0.74, radius * 0.74);
+            }
+            double close = Phase(p, 0.965, 1.0);
+            if (close > 0)
+                dc.DrawRectangle(Alpha(close, 1, 4, 10), null, new Rect(0, 0, DesignWidth, DesignHeight));
+        }
+
         protected override void OnRender(DrawingContext dc)
         {
             base.OnRender(dc);
-            double u = reducedMotion ? 5.2 : Time * 8 / settings.Duration;
+            double p = reducedMotion ? 0.82 : Clamp(Time / settings.Duration);
             var screen = new Rect(0, 0, DesignWidth, DesignHeight);
             dc.PushClip(new RectangleGeometry(screen, 10, 10));
-            dc.DrawRectangle(Brush("#F7FFF6"), null, screen);
-            DrawReference(dc, u);
-            DrawSoftLight(dc, u);
-            DrawLinePhase(dc, u);
-            DrawEyeGlint(dc, u);
-            DrawInterface(dc, u);
+            DrawBackdrop(dc, p);
+            DrawLinePhase(dc, p);
+            DrawReference(dc, p);
+            DrawEyeGlint(dc, p);
+            DrawParticles(dc, p, true);
+            DrawInterface(dc, p);
+            DrawFinale(dc, p);
             for (int y = 0; y < DesignHeight; y += 3)
-                dc.DrawLine(new Pen(Alpha(0.012, 10, 28, 40), 0.6), new Point(0, y), new Point(DesignWidth, y));
+                dc.DrawLine(new Pen(Alpha(0.018, 135, 220, 235), 0.55), new Point(0, y), new Point(DesignWidth, y));
             dc.Pop();
         }
     }
@@ -450,7 +603,7 @@ namespace RemCodexLauncher
 
     public static class Program
     {
-        private static void SaveFrame(RemScene scene, double time, string path)
+        private static RenderTargetBitmap RenderFrame(RemScene scene, double time)
         {
             scene.SetTime(time);
             scene.Measure(new Size(RemScene.DesignWidth, RemScene.DesignHeight));
@@ -462,9 +615,63 @@ namespace RemCodexLauncher
                     new Rect(0, 0, RemScene.ExportWidth, RemScene.ExportHeight));
             var bitmap = new RenderTargetBitmap(RemScene.ExportWidth, RemScene.ExportHeight, 96, 96, PixelFormats.Pbgra32);
             bitmap.Render(visual);
+            return bitmap;
+        }
+
+        private static void SaveFrame(RemScene scene, double time, string path)
+        {
+            RenderTargetBitmap bitmap = RenderFrame(scene, time);
             var encoder = new PngBitmapEncoder();
             encoder.Frames.Add(BitmapFrame.Create(bitmap));
             using (FileStream file = File.Create(path)) encoder.Save(file);
+        }
+
+        private static string Quote(string value) { return "\"" + value.Replace("\"", "\\\"") + "\""; }
+
+        private static void RenderVideo(RemScene scene, Settings config, string outputPath, string ffmpegPath)
+        {
+            if (!File.Exists(ffmpegPath)) throw new FileNotFoundException("找不到 FFmpeg。", ffmpegPath);
+            outputPath = Path.GetFullPath(outputPath);
+            string parent = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrWhiteSpace(parent)) Directory.CreateDirectory(parent);
+            int frames = (int)Math.Ceiling(config.Duration * config.FrameRate);
+            string arguments = "-hide_banner -loglevel warning -y -f rawvideo -pixel_format bgra -video_size " +
+                RemScene.ExportWidth + "x" + RemScene.ExportHeight + " -framerate " + config.FrameRate +
+                " -i pipe:0 -frames:v " + frames + " -c:v libx264 -preset fast -crf 17 -pix_fmt yuv420p -r " +
+                config.FrameRate + " -movflags +faststart " + Quote(outputPath);
+            var start = new ProcessStartInfo(ffmpegPath, arguments)
+            {
+                UseShellExecute = false,
+                RedirectStandardInput = true,
+                CreateNoWindow = true
+            };
+            using (Process encoder = Process.Start(start))
+            {
+                if (encoder == null) throw new InvalidOperationException("FFmpeg 无法启动。");
+                int stride = RemScene.ExportWidth * 4;
+                byte[] pixels = new byte[stride * RemScene.ExportHeight];
+                string progress = Path.Combine(parent ?? AppDomain.CurrentDomain.BaseDirectory, "render-progress.txt");
+                try
+                {
+                    for (int i = 0; i < frames; i++)
+                    {
+                        RenderTargetBitmap bitmap = RenderFrame(scene, i / (double)config.FrameRate);
+                        bitmap.CopyPixels(pixels, stride, 0);
+                        encoder.StandardInput.BaseStream.Write(pixels, 0, pixels.Length);
+                        if (i % config.FrameRate == 0)
+                            File.WriteAllText(progress, ((int)(i * 100.0 / frames)).ToString(CultureInfo.InvariantCulture));
+                    }
+                    encoder.StandardInput.Close();
+                    encoder.WaitForExit();
+                    if (encoder.ExitCode != 0) throw new InvalidOperationException("FFmpeg 视频编码失败，退出码：" + encoder.ExitCode);
+                    File.WriteAllText(progress, "100");
+                }
+                catch
+                {
+                    try { if (!encoder.HasExited) encoder.Kill(); } catch { }
+                    throw;
+                }
+            }
         }
 
         [STAThread]
@@ -478,12 +685,20 @@ namespace RemCodexLauncher
                 bool reduced = Array.IndexOf(args, "--reduced-motion") >= 0 ||
                     (config.RespectReducedMotion && !SystemParameters.ClientAreaAnimation);
                 int render = Array.IndexOf(args, "--render");
+                int renderVideo = Array.IndexOf(args, "--render-video");
                 bool selfTest = Array.IndexOf(args, "--self-test") >= 0;
                 if (Array.IndexOf(args, "--activation-test") >= 0)
                 {
                     uint pid = AppActivation.Open(config);
                     Directory.CreateDirectory(Path.Combine(root, "output"));
                     File.WriteAllText(Path.Combine(root, "output", "activation-test.txt"), "PASS: Codex activation accepted. PID: " + pid);
+                    return 0;
+                }
+                if (renderVideo >= 0)
+                {
+                    if (renderVideo + 2 >= args.Length) throw new ArgumentException("--render-video 后需要指定 MP4 输出路径和 FFmpeg 路径。");
+                    var videoScene = new RemScene(root, config, reduced);
+                    RenderVideo(videoScene, config, args[renderVideo + 1], args[renderVideo + 2]);
                     return 0;
                 }
                 if (render >= 0 || selfTest)
@@ -494,9 +709,13 @@ namespace RemCodexLauncher
                     var scene = new RemScene(root, config, reduced);
                     if (selfTest)
                     {
+                        SaveFrame(scene, config.Duration * 0.07, Path.Combine(folder, "intro.png"));
                         SaveFrame(scene, config.Duration * 0.18, Path.Combine(folder, "line-trace.png"));
+                        SaveFrame(scene, config.Duration * 0.34, Path.Combine(folder, "materialize.png"));
                         SaveFrame(scene, config.Duration * 0.50, Path.Combine(folder, "wake.png"));
+                        SaveFrame(scene, config.Duration * 0.555, Path.Combine(folder, "gaze-shift.png"));
                         SaveFrame(scene, config.Duration * 0.82, Path.Combine(folder, "ready.png"));
+                        SaveFrame(scene, config.Duration * 0.94, Path.Combine(folder, "finale.png"));
                         File.WriteAllText(Path.Combine(folder, "result.txt"),
                             "PASS: Rem startup frames rendered. App activation was not executed.\nReference: " + config.ReferenceImage);
                     }
@@ -527,7 +746,7 @@ namespace RemCodexLauncher
                     File.WriteAllText(Path.Combine(output, "launcher-error.txt"), error.ToString());
                 }
                 catch { }
-                if (Array.IndexOf(args, "--render") < 0 && Array.IndexOf(args, "--self-test") < 0 && Array.IndexOf(args, "--activation-test") < 0)
+                if (Array.IndexOf(args, "--render") < 0 && Array.IndexOf(args, "--render-video") < 0 && Array.IndexOf(args, "--self-test") < 0 && Array.IndexOf(args, "--activation-test") < 0)
                     MessageBox.Show(error.Message, "雷姆 Codex 启动器", MessageBoxButton.OK, MessageBoxImage.Error);
                 return 1;
             }

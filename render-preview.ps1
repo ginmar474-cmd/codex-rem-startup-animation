@@ -3,27 +3,43 @@ $projectRoot = $PSScriptRoot
 $exePath = Join-Path $projectRoot 'Start-Codex-Rem.exe'
 if (-not (Test-Path -LiteralPath $exePath)) { throw 'Run build.ps1 first.' }
 
-[xml]$configuration = Get-Content -LiteralPath (Join-Path $projectRoot 'launcher.config.xml') -Raw
-$fps = [int]$configuration.launcher.frameRate
-$duration = [double]::Parse($configuration.launcher.durationSeconds, [Globalization.CultureInfo]::InvariantCulture)
-$expectedFrames = [int][Math]::Ceiling($duration * $fps)
-$frameRoot = Join-Path $projectRoot ('output/render-frames-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
-New-Item -ItemType Directory -Path $frameRoot -Force | Out-Null
-$process = Start-Process -FilePath $exePath -ArgumentList @('--render', ('"' + $frameRoot + '"')) -WindowStyle Hidden -Wait -PassThru
-if ($process.ExitCode -ne 0) { throw 'Frame render failed. Check output/launcher-error.txt.' }
-
-$frameCount = (Get-ChildItem -LiteralPath $frameRoot -Filter 'frame-*.png').Count
-if ($frameCount -ne $expectedFrames) { throw ('Frame count mismatch: ' + $frameCount + ', expected: ' + $expectedFrames) }
-Write-Output ('Frames exported: ' + $frameRoot)
-
-$ffmpeg = Get-Command ffmpeg -ErrorAction SilentlyContinue
-if ($null -eq $ffmpeg) {
-    Write-Output 'FFmpeg not found. Skipped MP4 encoding. The EXE animation is ready to use.'
-    return
+$localFfmpeg = Get-ChildItem -LiteralPath (Join-Path $projectRoot 'tools') -Recurse -Filter 'ffmpeg.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($null -eq $localFfmpeg) {
+    $systemFfmpeg = Get-Command ffmpeg -ErrorAction SilentlyContinue
+    if ($null -eq $systemFfmpeg) { throw 'FFmpeg was not found. Run install-ffmpeg.ps1 first.' }
+    $ffmpegPath = $systemFfmpeg.Source
+} else {
+    $ffmpegPath = $localFfmpeg.FullName
 }
 
-$moviePath = Join-Path $projectRoot 'output/rem-codex-startup-2k-60fps.mp4'
-& $ffmpeg.Source -hide_banner -loglevel error -y -framerate $fps -i (Join-Path $frameRoot 'frame-%04d.png') -frames:v $expectedFrames -c:v libx264 -preset slow -crf 18 -pix_fmt yuv420p -r $fps -movflags +faststart $moviePath
-if ($LASTEXITCODE -ne 0) { throw 'FFmpeg encoding failed.' }
-Copy-Item -LiteralPath (Join-Path $frameRoot 'poster.png') -Destination (Join-Path $projectRoot 'output/rem-codex-startup-poster.png') -Force
+$outputRoot = Join-Path $projectRoot 'output'
+New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
+$moviePath = Join-Path $outputRoot 'rem-codex-crystal-wake-1080p-60fps.mp4'
+$progressPath = Join-Path $outputRoot 'render-progress.txt'
+Remove-Item -LiteralPath $progressPath -Force -ErrorAction SilentlyContinue
+
+$arguments = @('--render-video', ('"' + $moviePath + '"'), ('"' + $ffmpegPath + '"'))
+$process = Start-Process -FilePath $exePath -ArgumentList $arguments -WindowStyle Hidden -PassThru
+$lastProgress = ''
+while (-not $process.HasExited) {
+    Start-Sleep -Milliseconds 750
+    if (Test-Path -LiteralPath $progressPath) {
+        $progress = (Get-Content -LiteralPath $progressPath -Raw).Trim()
+        if ($progress -ne $lastProgress) {
+            Write-Output ('Rendering: ' + $progress + '%')
+            $lastProgress = $progress
+        }
+    }
+}
+if ($process.ExitCode -ne 0) { throw 'Video render failed. Check output/launcher-error.txt.' }
+
+$test = Start-Process -FilePath $exePath -ArgumentList '--self-test' -WindowStyle Hidden -Wait -PassThru
+if ($test.ExitCode -ne 0) { throw 'Poster frame render failed.' }
+Copy-Item -LiteralPath (Join-Path $outputRoot 'self-test\ready.png') -Destination (Join-Path $outputRoot 'rem-codex-crystal-wake-poster.png') -Force
+
+$ffprobePath = Join-Path (Split-Path -Parent $ffmpegPath) 'ffprobe.exe'
+if (Test-Path -LiteralPath $ffprobePath) {
+    & $ffprobePath -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate,codec_name -show_entries format=duration -of default=noprint_wrappers=1 $moviePath
+    if ($LASTEXITCODE -ne 0) { throw 'Video verification failed.' }
+}
 Write-Output ('Video generated: ' + $moviePath)

@@ -1,4 +1,8 @@
 output/render-frames-*/
 output/*.mp4
 output/launcher-error.txt
+output/render-progress.txt
+output/video-contact-sheet.jpg
+output/self-test/blink.png
+tools/
 *.pdb

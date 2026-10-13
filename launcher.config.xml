@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <launcher>
-  <durationSeconds>7.2</durationSeconds>
+  <durationSeconds>8.4</durationSeconds>
   <frameRate>60</frameRate>
   <referenceImage>assets/rem-reference.jpg</referenceImage>
   <appUserModelId>OpenAI.Codex_2p2nqsd0c76g0!App</appUserModelId>
